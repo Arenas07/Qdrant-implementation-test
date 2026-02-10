@@ -33,40 +33,39 @@ document.addEventListener('DOMContentLoaded', function () {
       elements.prompt.style.height = newHeight + 'px';
     });
   
-    elements.composer.addEventListener('submit', function (e) {
+    elements.composer.addEventListener('submit', async function (e) {
       e.preventDefault();
-      let text = elements.prompt.value;
-      if (text) {
-        text = text.trim();
-      }
-      if (!text) {
-        return;
-      }
-  
-      if (!API_KEY || API_KEY !== 'AIzaSyC_oGBVzaxQUnjO57GtTDu0gq-oU_bL4yI') {
-        alert('Configura tu API key en script.js');
-        return;
-      }
-  
-      let model = elements.modelSelect.value;
-      if (!model) {
-        model = DEFAULT_MODEL;
-      }
-  
+
+      let text = elements.prompt.value?.trim();
+      if (!text) return;
+
+      // Renderizar mensaje del usuario
       appendMessage('user', text, false);
       elements.prompt.value = '';
       elements.prompt.style.height = 'auto';
-  
       setSendingState(true);
-      generateContent(API_KEY, model, conversation, function (error, replyText) {
-        if (error) {
-          appendMessage('model', 'Error: ' + error, true);
+
+      try {
+        const res = await fetch('http://localhost:3000/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text }) 
+        });
+
+        const data = await res.json();
+
+        if (data.answer) {
+          appendMessage('model', data.answer, false);
         } else {
-          appendMessage('model', replyText, false);
+          appendMessage('model', 'No se recibió respuesta del servidor.', true);
         }
-        setSendingState(false);
-      });
+      } catch (err) {
+        appendMessage('model', 'Error de conexión con el backend.', true);
+      }
+
+      setSendingState(false);
     });
+
   
     function setSendingState(isSending) {
       elements.sendBtn.disabled = isSending;

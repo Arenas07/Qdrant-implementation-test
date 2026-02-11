@@ -1,59 +1,85 @@
 import express from "express";
-import bodyParser from "body-parser";
 import { QdrantClient } from "@qdrant/js-client-rest";
 import { pipeline } from "@xenova/transformers";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import cors from "cors";
+import dotenv from "dotenv";
+
+dotenv.config();
+
+const app = express();
+app.use(cors());
+
+app.use(express.json());
 
 const COLLECTION_NAME = "logica";
-const app = express();
-app.use(bodyParser.json());
 
-// Cargar modelo UNA vez
+// Gemini
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+// Embeddings
 const embedder = await pipeline(
   "feature-extraction",
   "Xenova/all-MiniLM-L6-v2"
 );
 
-// Cliente Qdrant
+// Qdrant
 const qdrant = new QdrantClient({
-  url: "https://47592da0-9385-46e2-aeef-f6ecc8e84bd3.europe-west3-0.gcp.cloud.qdrant.io:6333",
-  apiKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.e0f9F-rKs6Pmkhk4_MrZl51CcC3YbYLatE0tDN26Mls",
+  url: "https://47592da0-9385-46e2-aeef-f6ecc8e84bd3.europe-west3-0.gcp.cloud.qdrant.io",
+  apiKey: process.env.QDRANT_API_KEY,
+  checkCompatibility: false
 });
+
 
 app.post("/chat", async (req, res) => {
-  const question = req.body.message;
+  try {
+    const question = req.body.message;
 
-  if (!question) {
-    return res.status(400).json({ error: "Mensaje vacío" });
-  }
+    if (!question) {
+      return res.status(400).json({ error: "Mensaje vacío" });
+    }
 
-  // Embedding
-  const emb = await embedder(question, {
-    pooling: "mean",
-    normalize: true,
-  });
-
-  // Qdrant
-  const results = await qdrant.search(COLLECTION_NAME, {
-    vector: Array.from(emb.data),
-    limit: 5,
-    score_threshold: 0.35,
-  });
-
-  if (results.length === 0) {
-    return res.json({
-      answer: "No tengo información suficiente para responder a esa pregunta.",
+    // 1️⃣ Embedding
+    const emb = await embedder(question, {
+      pooling: "mean",
+      normalize: true,
     });
+
+    // 2️⃣ Buscar en Qdrant
+    const results = await qdrant.search(COLLECTION_NAME, {
+      vector: Array.from(emb.data),
+      limit: 5,
+    });
+
+    const context = results.map(r => r.payload.texto).join("\n");
+
+    // 3️⃣ Prompt RAG
+    const prompt = `
+Eres un asistente virtual de la pizzería.
+
+Contexto:
+${context}
+
+Pregunta:
+${question}
+
+Responde únicamente usando el contexto proporcionado.
+Si no existe información suficiente, dilo claramente.
+`;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+
+    res.json({ answer: text });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error interno del servidor" });
   }
-
-  const context = results.map(r => r.payload.texto).join("\n");
-
-  // Gemini
-  const answer = await askGemini(question, context);
-
-  res.json({ answer });
 });
 
-
 app.listen(3000, () => {
-  console.log("Backend RAG escuchando en http://localhost:3000");
+  console.log("Backend RAG escuchando en puerto 3000");
 });

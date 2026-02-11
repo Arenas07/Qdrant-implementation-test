@@ -84,4 +84,7 @@ async function main() {
 
   console.log("Textos insertados correctamente.");
 
+
 }
+
+main().catch(console.error);

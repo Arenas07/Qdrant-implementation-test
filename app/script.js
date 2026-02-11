@@ -8,11 +8,7 @@ document.addEventListener('DOMContentLoaded', function () {
       prompt: document.getElementById('prompt'),
       sendBtn: document.getElementById('sendBtn')
     };
-  
-    let API_KEY = 'AIzaSyC_oGBVzaxQUnjO57GtTDu0gq-oU_bL4yI';
-    let DEFAULT_MODEL = 'gemini-2.5-flash';
-  
-    // Historial de la conversación
+
     let conversation = [];
   
     elements.clearChatBtn.addEventListener('click', function () {

@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', function () {
       setSendingState(true);
 
       try {
-        const res = await fetch('http://localhost:3000/chat', {
+        const res = await fetch('http://localhost:5678/webhook/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: text }) 
@@ -50,8 +50,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const data = await res.json();
 
-        if (data.answer) {
-          appendMessage('model', data.answer, false);
+        if (data.output) {
+          appendMessage('model', data.output, false);
         } else {
           appendMessage('model', 'No se recibió respuesta del servidor.', true);
         }
